@@ -1,0 +1,19 @@
+{
+    "membros": {
+        "1354268065553977397": {
+            "pontos": 120,
+            "vendas": 0,
+            "recrutamentos": 3,
+            "desmanches": 0,
+            "historico_diario_rec": {
+                "seg": 0,
+                "ter": 0,
+                "qua": 0,
+                "qui": 0,
+                "sex": 0,
+                "sab": 0,
+                "dom": 0
+            }
+        }
+    }
+}

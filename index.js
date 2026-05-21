@@ -567,34 +567,138 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.reply({ content: '✅ Painel de estoque atualizado!', ephemeral: true });
         }
 
-        // --- MUDAR CARGO / TAG ---
+      // --- MUDAR CARGO / TAG ---
         if (interaction.isButton() && interaction.customId === 'staff_mudar_cargo') {
-            const modalCargo = new ModalBuilder().setCustomId('modal_coletar_dados_mudar_cargo').setTitle('Mudar Cargo/Tag');
-            const inputUser = new TextInputBuilder().setCustomId('cargo_user_id').setLabel('ID do Discord do membro (apenas números)').setStyle(TextInputStyle.Short).setRequired(true);
-            const inputCargo = new TextInputBuilder().setCustomId('cargo_novo_nome').setLabel('Novo nome do cargo (Ex: 02, Elite)').setStyle(TextInputStyle.Short).setRequired(true);
+            const modalCargo = new ModalBuilder().setCustomId('modal_mudar_cargo').setTitle('🔄 Mudar Cargo e Tag');
             
-            modalCargo.addComponents(new ActionRowBuilder().addComponents(inputUser), new ActionRowBuilder().addComponents(inputCargo));
+            const inputIdUser = new TextInputBuilder().setCustomId('cargo_userid').setLabel('ID do Membro (Discord)').setStyle(TextInputStyle.Short).setRequired(true);
+            const inputNovoCargo = new TextInputBuilder().setCustomId('cargo_novo').setLabel('Qual o novo cargo? (Ex: Elite)').setStyle(TextInputStyle.Short).setRequired(true);
+            const inputNome = new TextInputBuilder().setCustomId('cargo_nome').setLabel('Nome/Apelido na cidade').setStyle(TextInputStyle.Short).setRequired(true);
+            const inputIdJogo = new TextInputBuilder().setCustomId('cargo_idjogo').setLabel('ID na Cidade').setStyle(TextInputStyle.Short).setRequired(true);
+
+            modalCargo.addComponents(
+                new ActionRowBuilder().addComponents(inputIdUser),
+                new ActionRowBuilder().addComponents(inputNovoCargo),
+                new ActionRowBuilder().addComponents(inputNome),
+                new ActionRowBuilder().addComponents(inputIdJogo)
+            );
+            
             await interaction.showModal(modalCargo);
         }
 
-        if (interaction.isModalSubmit() && interaction.customId === 'modal_coletar_dados_mudar_cargo') {
-            const userId = interaction.fields.getTextInputValue('cargo_user_id');
-            const novoCargoNome = interaction.fields.getTextInputValue('cargo_novo_nome');
-            const membro = await interaction.guild.members.fetch(userId).catch(() => null);
+        if (interaction.isModalSubmit() && interaction.customId === 'modal_mudar_cargo') {
+            const userId = interaction.fields.getTextInputValue('cargo_userid');
+            const novoCargoNome = interaction.fields.getTextInputValue('cargo_novo');
+            const nomeMembro = interaction.fields.getTextInputValue('cargo_nome');
+            const idJogo = interaction.fields.getTextInputValue('cargo_idjogo');
 
-            if (!membro) return interaction.reply({ content: '❌ Membro não encontrado!', ephemeral: true });
+            const membroAlvo = await interaction.guild.members.fetch(userId).catch(() => null);
+            if (!membroAlvo) return interaction.reply({ content: '❌ Membro não encontrado no servidor!', ephemeral: true });
 
-            const cargoId = CONFIG.CARGOS_HIERARQUIA[novoCargoNome.toLowerCase()];
-            if (cargoId) {
-                await membro.roles.add(cargoId).catch(() => {});
-                await membro.setNickname(`[${novoCargoNome.toUpperCase()}] ${membro.displayName.split('] ')[1] || membro.displayName}`).catch(() => {});
-                await interaction.reply({ content: `✅ Cargo alterado para ${novoCargoNome} com sucesso!`, ephemeral: true });
-            } else {
-                await interaction.reply({ content: '❌ Cargo não encontrado na hierarquia configurada.', ephemeral: true });
-            }
+            const cargoEspecificoId = CONFIG.CARGOS_HIERARQUIA[String(novoCargoNome).toLowerCase().trim()];
+            if (cargoEspecificoId) await membroAlvo.roles.add(cargoEspecificoId).catch(() => {});
+
+            const formatoTag = `[${novoCargoNome}] ${nomeMembro} [${idJogo}]`;
+            await membroAlvo.setNickname(formatoTag.slice(0, 32)).catch(() => {});
+
+            await interaction.reply({ content: `✅ Cargo e Tag de ${membroAlvo} atualizados com sucesso!`, ephemeral: true });
         }
-    } catch (e) { console.error("Erro na interação:", e); }
+
+        // --- APLICAR ADVERTÊNCIA (ADV) ---
+        if (interaction.isButton() && interaction.customId === 'punir_adv') {
+            const modalAdv = new ModalBuilder().setCustomId('modal_aplicar_adv').setTitle('⚠️ Aplicar Advertência');
+            
+            const inputIdUser = new TextInputBuilder().setCustomId('adv_userid').setLabel('ID do Membro (Discord)').setStyle(TextInputStyle.Short).setRequired(true);
+            const inputMotivo = new TextInputBuilder().setCustomId('adv_motivo').setLabel('Motivo da Advertência').setStyle(TextInputStyle.Paragraph).setRequired(true);
+            
+            modalAdv.addComponents(new ActionRowBuilder().addComponents(inputIdUser), new ActionRowBuilder().addComponents(inputMotivo));
+            await interaction.showModal(modalAdv);
+        }
+
+        if (interaction.isModalSubmit() && interaction.customId === 'modal_aplicar_adv') {
+            const userId = interaction.fields.getTextInputValue('adv_userid');
+            const motivo = interaction.fields.getTextInputValue('adv_motivo');
+
+            const membroAlvo = await interaction.guild.members.fetch(userId).catch(() => null);
+            if (!membroAlvo) return interaction.reply({ content: '❌ Membro não encontrado!', ephemeral: true });
+
+            // Deduzir pontos como punição (Exemplo: 50 pontos)
+            garantirMembroNoDB(userId);
+            dbData.membros[userId].pontos = Math.max(0, (dbData.membros[userId].pontos || 0) - 50);
+            salvarDB();
+
+            const canalAdv = await interaction.guild.channels.fetch(CONFIG.CANAL_LOG_ADV).catch(() => null);
+            if (canalAdv) {
+                const embedAdv = new EmbedBuilder()
+                    .setTitle('⚠️ NOVA ADVERTÊNCIA APLICADA')
+                    .setColor('#f1c40f')
+                    .setDescription(`👤 **Membro Punido:** ${membroAlvo}\n🛡️ **Aplicado por:** ${interaction.user}\n📄 **Motivo:** ${motivo}\n📉 **Punição:** -50 Pontos de Rank`)
+                    .setTimestamp();
+                await canalAdv.send({ content: `${membroAlvo}`, embeds: [embedAdv] });
+            }
+
+            await interaction.reply({ content: `✅ Advertência aplicada em ${membroAlvo} e pontos reduzidos!`, ephemeral: true });
+        }
+
+        // --- APLICAR BLACKLIST (BL) ---
+        if (interaction.isButton() && interaction.customId === 'punir_bl') {
+            const modalBl = new ModalBuilder().setCustomId('modal_aplicar_bl').setTitle('🚫 Dar Blacklist Direto');
+            
+            const inputIdUser = new TextInputBuilder().setCustomId('bl_userid').setLabel('ID do Membro (Discord)').setStyle(TextInputStyle.Short).setRequired(true);
+            const inputMotivo = new TextInputBuilder().setCustomId('bl_motivo').setLabel('Motivo do Blacklist').setStyle(TextInputStyle.Paragraph).setRequired(true);
+            
+            modalBl.addComponents(new ActionRowBuilder().addComponents(inputIdUser), new ActionRowBuilder().addComponents(inputMotivo));
+            await interaction.showModal(modalBl);
+        }
+
+        if (interaction.isModalSubmit() && interaction.customId === 'modal_aplicar_bl') {
+            const userId = interaction.fields.getTextInputValue('bl_userid');
+            const motivo = interaction.fields.getTextInputValue('bl_motivo');
+
+            const membroAlvo = await interaction.guild.members.fetch(userId).catch(() => null);
+            if (!membroAlvo) return interaction.reply({ content: '❌ Membro não encontrado!', ephemeral: true });
+
+            const cargoBl = CONFIG.CARGO_BLACKLIST;
+            if (cargoBl) {
+                // Setar os cargos substitui todos os cargos atuais apenas pelo de BL
+                await membroAlvo.roles.set([cargoBl]).catch(() => {}); 
+            }
+
+            const canalBl = await interaction.guild.channels.fetch(CONFIG.CANAL_LOG_BLACKLIST).catch(() => null);
+            if (canalBl) {
+                const embedBl = new EmbedBuilder()
+                    .setTitle('🚫 BLACKLIST APLICADO')
+                    .setColor('#000000')
+                    .setDescription(`👤 **Membro:** ${membroAlvo}\n🛡️ **Aplicado por:** ${interaction.user}\n📄 **Motivo:** ${motivo}`)
+                    .setTimestamp();
+                await canalBl.send({ content: `${membroAlvo}`, embeds: [embedBl] });
+            }
+
+            // Zera o histórico do membro banido no banco de dados local
+            if (dbData.membros[userId]) {
+                delete dbData.membros[userId];
+                salvarDB();
+            }
+
+            await interaction.reply({ content: `✅ Blacklist aplicado em ${membroAlvo} com sucesso! Seus cargos foram removidos e o histórico resetado.`, ephemeral: true });
+        }
+
+    } catch (error) {
+        console.error("Erro durante a interação:", error);
+        if (interaction.isRepliable() && !interaction.replied) {
+            await interaction.reply({ content: '❌ Ocorreu um erro interno ao processar a ação. Verifique os logs do console.', ephemeral: true }).catch(() => {});
+        }
+    }
 });
+
+// ==========================================
+// INICIALIZAÇÃO DO BOT
+// ==========================================
+if (TOKEN) {
+    client.login(TOKEN).catch(err => console.error("❌ Erro ao realizar login no Discord. Verifique seu TOKEN.", err));
+} else {
+    console.error("🚨 ERRO CRÍTICO: A variável DISCORD_TOKEN não foi encontrada no arquivo .env!");
+}
 
 // ==========================================
 // SERVIDOR PARA MANTER O BOT ONLINE 24H (RENDER)

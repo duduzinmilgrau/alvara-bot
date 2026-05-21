@@ -3,6 +3,22 @@ const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder
 const fs = require('fs');
 const path = require('path');
 
+// ==========================================
+// SISTEMA PARA MANTER O BOT ONLINE 24/7
+// ==========================================
+const express = require('express');
+const app = express();
+
+app.get('/', (req, res) => {
+    res.send('O bot do Alvará está online e rodando!');
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`🌐 Servidor web rodando na porta ${PORT}`);
+});
+// ==========================================
+
 const TOKEN = process.env.DISCORD_TOKEN ? String(process.env.DISCORD_TOKEN).trim() : null;
 
 const client = new Client({
@@ -13,6 +29,11 @@ const client = new Client({
         GatewayIntentBits.GuildMembers 
     ]
 });
+
+// ==========================================
+// CONFIGURAÇÕES GERAIS
+// (Substitua 'SEU_ID_AQUI' pelo ID numérico do cargo caso não use o .env)
+// ==========================================
 
 // ==========================================
 // CONFIGURAÇÕES GERAIS

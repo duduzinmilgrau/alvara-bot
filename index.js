@@ -721,14 +721,4 @@ if (TOKEN) {
     console.error("🚨 ERRO CRÍTICO: A variável DISCORD_TOKEN não foi encontrada no arquivo .env!");
 }
 
-// ==========================================
-// SERVIDOR PARA MANTER O BOT ONLINE 24H (RENDER)
-// ==========================================
-const express = require('express');
-const app = express();
-app.get('/', (req, res) => res.send('ALVARÁ está ONLINE e monitorando!'));
-app.listen(process.env.PORT || 3000, () => {
-    console.log('Servidor web iniciado para Uptime na porta ' + (process.env.PORT || 3000));
-});
-
-client.login(TOKEN);
+client.login(TOKEN)
